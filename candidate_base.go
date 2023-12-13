@@ -18,6 +18,10 @@ import (
 	"github.com/pion/stun/v2"
 )
 
+var (
+	startTime = time.Now()
+)
+
 type candidateBase struct {
 	id            string
 	networkType   NetworkType
@@ -31,9 +35,9 @@ type candidateBase struct {
 
 	resolvedAddr net.Addr
 
-	lastSent     atomic.Value
-	lastReceived atomic.Value
-	conn         net.PacketConn
+	lastSentAfter     atomic.Int64
+	lastReceivedAfter atomic.Int64
+	conn              net.PacketConn
 
 	currAgent *Agent
 	closeCh   chan struct{}
@@ -207,6 +211,7 @@ func (c *candidateBase) start(a *Agent, conn net.PacketConn, initializedCh <-cha
 	c.conn = conn
 	c.closeCh = make(chan struct{})
 	c.closedCh = make(chan struct{})
+	startTime = time.Now()
 
 	go c.recvLoop(initializedCh)
 }
@@ -400,34 +405,47 @@ func (c *candidateBase) String() string {
 // LastReceived returns a time.Time indicating the last time
 // this candidate was received
 func (c *candidateBase) LastReceived() time.Time {
-	if lastReceived, ok := c.lastReceived.Load().(time.Time); ok {
-		return lastReceived
+	// if lastReceived, ok := c.lastReceived.Load().(time.Time); ok {
+	// 	return lastReceived
+	// }
+	// return time.Time{}
+	diff := c.lastReceivedAfter.Load()
+	if diff > 0 {
+		return startTime.Add(time.Duration(diff))
 	}
+
 	return time.Time{}
 }
 
-func (c *candidateBase) setLastReceived(t time.Time) {
-	c.lastReceived.Store(t)
+func (c *candidateBase) setLastReceived() {
+	c.lastReceivedAfter.Store(time.Since(startTime).Nanoseconds())
 }
 
 // LastSent returns a time.Time indicating the last time
 // this candidate was sent
 func (c *candidateBase) LastSent() time.Time {
-	if lastSent, ok := c.lastSent.Load().(time.Time); ok {
-		return lastSent
+	// if lastSent, ok := c.lastSent.Load().(time.Time); ok {
+	// 	return lastSent
+	// }
+	// return time.Time{}
+
+	diff := c.lastSentAfter.Load()
+	if diff > 0 {
+		return startTime.Add(time.Duration(diff))
 	}
+
 	return time.Time{}
 }
 
-func (c *candidateBase) setLastSent(t time.Time) {
-	c.lastSent.Store(t)
+func (c *candidateBase) setLastSent() {
+	c.lastSentAfter.Store(time.Since(startTime).Nanoseconds())
 }
 
 func (c *candidateBase) seen(outbound bool) {
 	if outbound {
-		c.setLastSent(time.Now())
+		c.setLastSent() //time.Now())
 	} else {
-		c.setLastReceived(time.Now())
+		c.setLastReceived() //time.Now())
 	}
 }
 
