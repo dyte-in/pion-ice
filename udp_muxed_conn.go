@@ -36,6 +36,7 @@ type udpMuxedConn struct {
 	// Channel holding incoming packets
 	buf        *packetio.Buffer
 	closedChan chan struct{}
+	closed     atomic.Bool
 	closeOnce  sync.Once
 	mu         sync.Mutex
 
@@ -131,17 +132,19 @@ func (c *udpMuxedConn) Close() error {
 	c.closeOnce.Do(func() {
 		err = c.buf.Close()
 		close(c.closedChan)
+		c.closed.Store(true)
 	})
 	return err
 }
 
 func (c *udpMuxedConn) isClosed() bool {
-	select {
-	case <-c.closedChan:
-		return true
-	default:
-		return false
-	}
+	// select {
+	// case <-c.closedChan:
+	// 	return true
+	// default:
+	// 	return false
+	// }
+	return c.closed.Load()
 }
 
 func (c *udpMuxedConn) getAddresses() []string {

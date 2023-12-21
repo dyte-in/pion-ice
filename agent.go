@@ -122,6 +122,7 @@ type Agent struct {
 
 	// State for closing
 	done         chan struct{}
+	closed       atomic.Bool // Atomic bools are much faster than channels
 	taskLoopDone chan struct{}
 	err          atomicx.Error
 
@@ -170,10 +171,13 @@ func (a *Agent) getAfterRunFn() []func(context.Context) {
 }
 
 func (a *Agent) ok() error {
-	select {
-	case <-a.done:
+	// select {
+	// case <-a.done:
+	// 	return a.getErr()
+	// default:
+	// }
+	if a.closed.Load() {
 		return a.getErr()
-	default:
 	}
 	return nil
 }
@@ -936,6 +940,7 @@ func (a *Agent) Close() error {
 
 	a.removeUfragFromMux()
 
+	a.closed.Store(true)
 	close(a.done)
 	<-a.taskLoopDone
 	return nil
